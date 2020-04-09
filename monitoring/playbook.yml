@@ -1,0 +1,103 @@
+---
+- hosts: monitoring
+  gather_facts: no
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    project_folder: prometheus-monitoring-stack
+  tasks:
+
+  - name: Install nginx, certbot and pip3
+    become: true
+    apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    loop:
+      - nginx
+      - certbot
+      - python3-certbot-nginx
+      - python3-pip
+
+  - name: Install pip3 modules
+    become: true
+    pip:
+      name: "{{ item }}"
+      executable: pip3
+    loop:
+      - docker
+      - setuptools
+      - docker-compose
+
+  - name: Start and enable nginx service
+    become: true
+    service:
+      enabled: yes
+      name: nginx
+      state: started
+
+  - name: Copy nginx vhost config
+    become: true
+    template:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      owner: root
+      group: root
+      mode: '0644'
+    loop:
+      - src: files/frontend/prometheus-monitoring-stack.conf
+        dest: /etc/nginx/sites-available/prometheus-monitoring-stack.conf
+      - src: files/frontend/whitelist
+        dest: /etc/nginx/whitelist-monitoring
+    register: vhost
+
+  - name: Create symlink of vhost conf
+    become: true
+    file:
+      src: /etc/nginx/sites-available/prometheus-monitoring-stack.conf
+      dest: /etc/nginx/sites-enabled/prometheus-monitoring-stack.conf
+      owner: root
+      group: root
+      state: link
+
+  - name: Create project directory if it does not exist
+    file:
+      path: "~/{{ project_folder }}"
+      state: directory
+      mode: '0755'
+
+  - name: Copy files and directories
+    copy:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      mode: '0444'
+      backup: yes
+    loop:
+      - src: files/docker-compose.yml
+        dest: "~/{{ project_folder }}/docker-compose.yml"
+      - src: files/alertmanager
+        dest: "~/{{ project_folder }}/"
+      - src: files/prometheus
+        dest: "~/{{ project_folder }}/"
+      - src: files/blackbox-exporter
+        dest: "~/{{ project_folder }}/"
+
+  - name: Run compose
+    docker_compose:
+      build: no
+      project_src: "~/{{ project_folder }}"
+      pull: yes
+      recreate: smart
+      restarted: no
+      state: present
+      stopped: no
+
+  - name: Reload prometheus config
+    shell: curl -sSf http://127.0.0.1:9090/prometheus/-/reload -X POST
+
+  - name: Reload alertmanager config
+    shell: curl -sSf http://127.0.0.1:9093/alertmanager/-/reload -X POST
+
+  - name: Test vhost config and reload nginx
+    become: true
+    shell: nginx -t && nginx -s reload
+    when: vhost.changed

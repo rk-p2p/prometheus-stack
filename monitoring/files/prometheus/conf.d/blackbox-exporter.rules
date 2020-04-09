@@ -1,0 +1,53 @@
+groups:
+- name: blackbox-exporter
+  rules:
+  - alert: SiteNot2xxResponse
+    expr: probe_http_status_code != 200
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Site not 2xx response"
+      description: "Site not 2xx response!\nVALUE = {{ $value }}\nLABELS:\n {{ $labels }}"
+
+  - alert: ProbeFailed
+    expr: probe_success != 1
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Probe failed"
+      description: "Probe failed.\nVALUE = {{ $value }}\nLABELS:\n{{ $labels }}"
+
+  - alert: SiteResponseMoreThan5s
+    expr: sum by (instance) (probe_http_duration_seconds) > 5
+    for: 30s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Site slow response"
+      description: "Site response > 5 sec.\nVALUE = {{ $value }}\nLABELS:\n{{ $labels }}"
+
+  - alert: SslCertificateExpire3Weeks
+    expr: (sum by (instance) (probe_ssl_earliest_cert_expiry) - time()) / 24 / 60 / 60 < 21
+    labels:
+      severity: info
+    annotations:
+      summary: "SSL certificate expire"
+      description: "SSL certificate expire in 3 weeks\nVALUE = {{ $value }}\nLABELS:\n{{ $labels }}"
+
+  - alert: SslCertificateExpire1Week
+    expr: (sum by (instance) (probe_ssl_earliest_cert_expiry) - time()) / 24 / 60 / 60 < 7
+    labels:
+      severity: warning
+    annotations:
+      summary: "SSL certificate expire"
+      description: "SSL certificate expire in 7 days!\nVALUE = {{ $value }}\nLABELS:\n{{ $labels }}"
+
+  - alert: SslCertificateExpire2Days
+    expr: (sum by (instance) (probe_ssl_earliest_cert_expiry) - time()) / 24 / 60 / 60 < 2
+    labels:
+      severity: critical
+    annotations:
+      summary: "SSL certificate expire"
+      description: "SSL certificate expire in 2 days!\nVALUE = {{ $value }}\nLABELS:\n{{ $labels }}"

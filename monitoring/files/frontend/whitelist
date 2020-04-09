@@ -1,0 +1,3 @@
+allow 127.0.0.1;
+# Add your own IPs
+deny all;

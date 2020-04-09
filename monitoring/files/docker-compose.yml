@@ -1,0 +1,84 @@
+version: '3.5'
+
+networks:
+  monitoring:
+    name: monitoring
+    driver: bridge
+
+volumes:
+    prometheus_data:
+    grafana_data:
+    alertmanager_data:
+
+services:
+
+  prometheus:
+    image: prom/prometheus:v2.14.0
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=4w'
+      - '--web.enable-lifecycle'
+      - '--web.external-url=http://YOUR_EXTERNAL_IP_OR_DNS_NAME/prometheus'
+      - '--web.enable-admin-api'
+    restart: always
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:v0.19.0
+    volumes:
+      - ./alertmanager:/etc/alertmanager
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://YOUR_EXTERNAL_IP_OR_DNS_NAME/alertmanager'
+    restart: always
+    ports:
+      - "127.0.0.1:9093:9093"
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:6.5.1
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SERVER_ROOT_URL=http://YOUR_EXTERNAL_IP_OR_DNS_NAME/grafana/
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - monitoring
+
+  pushgateway:
+    image: prom/pushgateway:v1.0.0
+    restart: always
+    ports:
+      - "127.0.0.1:9091:9091"
+    networks:
+      - monitoring
+
+  blackboxexporter:
+    cap_add:
+      - CAP_NET_RAW
+    restart: always
+    command:
+      - '--config.file=/etc/blackbox-exporter/config.yml'
+      - '--web.external-url=http://YOUR_EXTERNAL_IP_OR_DNS_NAME/blackbox-exporter'
+      - '--log.format=json'
+    image: prom/blackbox-exporter
+    networks:
+      - monitoring
+    ports:
+      - "127.0.0.1:9115:9115"
+    volumes:
+      - ./blackbox-exporter/config.yml:/etc/blackbox-exporter/config.yml:ro

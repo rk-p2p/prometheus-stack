@@ -1,0 +1,97 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+rule_files:
+  - 'conf.d/*.rules'
+
+alerting:
+  alertmanagers:
+  - scheme: http
+    path_prefix: /alertmanager
+    static_configs:
+    - targets:
+      - 'alertmanager:9093'
+
+scrape_configs:
+
+  - job_name: 'nodeexporter (local)'
+    static_configs:
+      - targets: ['nodeexporter:9100']
+
+  - job_name: 'cadvisor (local)'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: 'prometheus (local)'
+    metrics_path: '/prometheus/metrics'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'pushgateway (local)'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+
+  - job_name: 'cadvisor'
+    file_sd_configs:
+      - files: ['conf.d/cadvisor.yml']
+
+  - job_name: 'node-exporter'
+    file_sd_configs:
+      - files: ['conf.d/prometheus-node-exporter.yml']
+
+  - job_name: 'blackbox-ssl-2xx'
+    metrics_path: /blackbox-exporter/probe
+    params:
+      module: [https_2xx]  # Look for a HTTPS 200 response.
+    static_configs:
+      - targets:
+        - https://example.com/
+        - https://example2.com/
+        labels:
+          label: value
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackboxexporter:9115  # The blackbox exporter's real hostname:port.
+
+  - job_name: 'blackbox-no-ssl-2xx'
+    metrics_path: /blackbox-exporter/probe
+    params:
+      module: [https_2xx_no_ssl]  # Look for a HTTPS 200 response.
+    static_configs:
+      - targets:
+        - https://example.com/no-ssl/
+        - https://example2.com/no-ssl/
+        labels:
+          label: value
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackboxexporter:9115  # The blackbox exporter's real hostname:port.
+
+  - job_name: 'blackbox-icmp-prod'
+    metrics_path: /blackbox-exporter/probe
+    params:
+      module: [icmp]  # Send icmp request
+    static_configs:
+      - targets:
+        - 1.1.1.1
+        - 8.8.8.8
+        - 8.8.4.4
+        labels:
+          label: value
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackboxexporter:9115  # The blackbox exporter's real hostname:port.
